@@ -14,10 +14,10 @@ from pytorch_transformers import *
 
 
 # 一个网络
-class MultiHeadSelection(nn.Module):
+class MultiHeadSelection_for_test(nn.Module):
 
     def __init__(self, hyper) -> None:
-        super(MultiHeadSelection, self).__init__()
+        super(MultiHeadSelection_for_test, self).__init__()
         device = torch.device("cuda")
         # 总参数
         self.hyper = hyper

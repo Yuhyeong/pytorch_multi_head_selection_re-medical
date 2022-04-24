@@ -17,6 +17,7 @@ from lib.preprocessings import Chinese_selection_preprocessing, Conll_selection_
 from lib.dataloaders import Selection_Dataset, Selection_loader
 from lib.metrics import F1_triplet, F1_ner
 from lib.models import MultiHeadSelection
+from lib.models import M
 from lib.config import Hyper
 
 parser = argparse.ArgumentParser()
@@ -28,8 +29,8 @@ parser.add_argument('--exp_name',
 parser.add_argument('--mode',
                     '-m',
                     type=str,
-                    default='preprocessing',
-                    help='preprocessing|train|evaluation')
+                    default='train',
+                    help='preprocessing|train|evaluation|test')
 args = parser.parse_args()
 
 
@@ -66,6 +67,10 @@ class Runner(object):
         #使用hyper中的参数进行训练
         self.model = MultiHeadSelection(self.hyper).to(device)
         # self.model = MultiHeadSelection(self.hyper)
+
+    # test的model
+    def _init_model_of_test(self):
+        self.model = MultiHeadSelection(self.hyper)
 
     # 预训练
     def preprocessing(self):
@@ -144,7 +149,7 @@ class Runner(object):
     # 测试
     def test(self):
         test_set = Selection_Dataset(self.hyper, self.hyper.test)#dataset
-        loader = Selection_loader(test_set, batch_size=self.hyper.eval_batch, pin_memory=True)#dataloader
+        loader = Selection_loader(test_set, batch_size=self.hyper.test_batch, pin_memory=True)#dataloader
 
         self.triplet_metrics.reset()
         self.model.eval()
@@ -154,10 +159,6 @@ class Runner(object):
         with torch.no_grad():
             for batch_ndx, sample in pbar:
                 output = self.model(sample, is_train=False)
-
-
-
-
 
     # 训练
     def train(self):

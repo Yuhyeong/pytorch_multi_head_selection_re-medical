@@ -29,6 +29,7 @@ class Hyper(object):
         self.bio_emb_size: int
         self.train_batch: int
         self.eval_batch: int
+        self.test_batch: int
 
         self.__dict__ = json.load(open(path, 'r'))
 

@@ -22,5 +22,6 @@
     "epoch_num": 15,
     "train_batch": 4,
     "eval_batch": 40,
+    "test_batch": 4,
     "gpu":1
 }
