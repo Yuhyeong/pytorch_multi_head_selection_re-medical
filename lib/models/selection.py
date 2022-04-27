@@ -35,21 +35,29 @@ class MultiHeadSelection(nn.Module):
         # 定义一个word_embedding的存储结构
         # num_embeddings几个词向量
         # embedding_dim词向量维度
+        # 从word_vocab构建字数个向量，每个向量300维
+        # 只用输入个数与维数即可生成一组对应的向量
         self.word_embeddings = nn.Embedding(num_embeddings=len(
             self.word_vocab),
             embedding_dim=hyper.emb_size)
 
         # 定义一个relation_emb的存储结构
+        # 从word_vocab构建关系数目个向量，每个向量100维
         self.relation_emb = nn.Embedding(num_embeddings=len(
             self.relation_vocab),
             embedding_dim=hyper.rel_emb_size)
 
         # bio + pad
         # 定义一个relation_emb的存储结构，同时有mask过的pad
+        # 从bio_vocab构建bio数量个向量，每个向量100维
+        # 生成向量
         self.bio_emb = nn.Embedding(num_embeddings=len(self.bio_vocab),
                                     embedding_dim=hyper.bio_emb_size)
 
         # 预训练的模型
+        # chineses_selection中用的是LSTM的encoder
+        # 直接用pytorch封装好的LSTM来定义pytorch，即网络结构
+        # 网络的输入结构为1.每一个词的维度（字维度） 2.hidden_size 3.是否是双向的LSTM，4.输入向量的第一维是否是batch数目
         if hyper.cell_name == 'gru':
             self.encoder = nn.GRU(hyper.emb_size,
                                   hyper.hidden_size,
@@ -83,6 +91,9 @@ class MultiHeadSelection(nn.Module):
         else:
             raise ValueError('unexpected activation!')
 
+        # 随机打标签机器，CRF，条件随机场。 作用是输入一个bio标签序列。输出一个
+        # CRF负责学习相邻实体标签之间的转移规则，即让b i o三个标签能尽量输出成一个实体，让字向量之间产生关系，以便升格为词向量
+        # 1.标签数量 2.第一维是否是batch数目
         self.tagger = CRF(len(self.bio_vocab) - 1, batch_first=True)
 
         self.selection_u = nn.Linear(hyper.hidden_size + hyper.bio_emb_size,
@@ -138,8 +149,12 @@ class MultiHeadSelection(nn.Module):
     def forward(self, sample, is_train: bool) -> Dict[str, torch.Tensor]:
         device = torch.device("cuda")
 
-        #这三个为tensor集合
+        # 这三个为tensor集合
 
+        # 取text、relation、bio的对应位置在vocab里面的序号
+        # tokens 二维矩阵，batch_size个max_len的向量，e.g 4个300维向量，4个最大长度为300的text向量。字向量，存的是序号word_vocab里面的字序号
+        # selection 三维矩阵，存储的关系向量，300*300*48即300个实体之间的40个关系。关系向量，存的是序号relation_vocab里面的字序号
+        # bio_gold，二维矩阵 与tokens字向量相对应的BIO向量同为*300,，存的是序号bio_vocab里面的BIO序号
         tokens = sample.tokens_id.to(device)  # text
         selection_gold = sample.selection_id.to(device)  # selection
         bio_gold = sample.bio_id.to(device)  # bio
@@ -147,13 +162,16 @@ class MultiHeadSelection(nn.Module):
         # selection_gold = sample.selection_id
         # bio_gold = sample.bio_id
 
+        # 取text、relation、bio的实际内容
         text_list = sample.text
         spo_gold = sample.spo_gold
         bio_text = sample.bio
 
-        # 判断hyper的cell_name的内容,来确定进程
+        # 判断tokens是否填充，pad的作用是填充，是长短句的input一样，即用来断定长短句的边界
         if self.hyper.cell_name in ('gru', 'lstm'):
-            mask = tokens != self.word_vocab['<pad>']  # batch x seq
+            # 判断token每个位置的序号是不是<pad>，即这个地方是否是填充为，若是则TRUE，e.g.输出4*300的bool元素
+            mask = tokens != self.word_vocab['<pad>']  # batch x seq #取bio_vocab里面的<pad>的序号
+            #通过bio_mask来判断长短句边界
             bio_mask = mask
         elif self.hyper.cell_name in ('bert'):
             notpad = tokens != self.bert_tokenizer.encode('[PAD]')[0]
@@ -165,7 +183,10 @@ class MultiHeadSelection(nn.Module):
             raise ValueError('unexpected encoder name!')
 
         if self.hyper.cell_name in ('lstm', 'gru'):
+            # 输入的是每个句子text的对应的，每个字的位置的字向量，根据vocab里的字序号来从word_embeddings中提取字向量
+            # 4*300*300， 4个300长度的序列，每个字都是一个300维度的字向量
             embedded = self.word_embeddings(tokens)
+
             o, h = self.encoder(embedded)
 
             o = (lambda a: sum(a) / 2)(torch.split(o,
@@ -173,6 +194,7 @@ class MultiHeadSelection(nn.Module):
                                                    dim=2))
         elif self.hyper.cell_name == 'bert':
             # with torch.no_grad():
+            # 输入字向量
             o = self.encoder(tokens, attention_mask=mask)[
                 0]  # last hidden of BERT
             # o = self.activation(o)
@@ -196,10 +218,15 @@ class MultiHeadSelection(nn.Module):
 
         # 若forward中的is_train设置为fale，则output会返回bio的tensor
         if is_train:
+            #crf误差，用于调整参数，是标注的字向量能组成词向量
+            #        """Compute the conditional log likelihood of a sequence of tags given emission scores.
+            # 根据给出的emissions评分返回，mask为输入序列的定界
             crf_loss = -self.tagger(emi, bio_gold,
                                     mask=bio_mask, reduction='mean')
         else:
-            #decoded_tag为预测text的实体标注序列
+            # decoded_tag为预测出来的text的实体标注序列
+            #        """Find the most likely tag sequence using Viterbi algorithm.
+            # 返回的是在这个crf_Loss下，可能性最高的向量序列
             decoded_tag = self.tagger.decode(emissions=emi, mask=bio_mask)
 
             output['decoded_tag'] = [list(map(lambda x: self.id2bio[x], tags)) for tags in decoded_tag]

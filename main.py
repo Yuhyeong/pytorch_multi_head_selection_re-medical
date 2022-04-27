@@ -14,10 +14,9 @@ from torch.optim import Adam, SGD
 from pytorch_transformers import AdamW, WarmupLinearSchedule
 
 from lib.preprocessings import Chinese_selection_preprocessing, Conll_selection_preprocessing, Conll_bert_preprocessing
-from lib.dataloaders import Selection_Dataset, Selection_loader
+from lib.dataloaders import Selection_Dataset, Selection_Dataset_for_test, Selection_loader, Selection_loader_for_test
 from lib.metrics import F1_triplet, F1_ner
-from lib.models import MultiHeadSelection
-from lib.models import M
+from lib.models import MultiHeadSelection, MultiHeadSelection_for_test
 from lib.config import Hyper
 
 parser = argparse.ArgumentParser()
@@ -25,11 +24,12 @@ parser.add_argument('--exp_name',
                     '-e',
                     type=str,
                     default='chinese_selection_re',
-                    help='experiments/exp_name.json     (chinese_selection_re, chinese_bert_re, conll_re, conll_bert_re)')
+                    help='experiments/exp_name.json'
+                         'chinese_selection_re, chinese_bert_re, conll_re, conll_bert_re')
 parser.add_argument('--mode',
                     '-m',
                     type=str,
-                    default='train',
+                    default='test',
                     help='preprocessing|train|evaluation|test')
 args = parser.parse_args()
 
@@ -69,8 +69,10 @@ class Runner(object):
         # self.model = MultiHeadSelection(self.hyper)
 
     # test的model
-    def _init_model_of_test(self):
-        self.model = MultiHeadSelection(self.hyper)
+    def _init_model_for_test(self):
+        device = torch.device("cuda")
+
+        self.model = MultiHeadSelection_for_test(self.hyper).to(device)
 
     # 预训练
     def preprocessing(self):
@@ -100,7 +102,7 @@ class Runner(object):
             self.load_model(epoch=self.hyper.evaluation_epoch)   #输入epoch号，选择使用哪个epoch的模型
             self.evaluation()
         elif mode == 'test':
-            self._init_model()
+            self._init_model_for_test()
             self.load_model(epoch=self.hyper.test_epoch)
             self.test()
         else:
@@ -148,8 +150,8 @@ class Runner(object):
 
     # 测试
     def test(self):
-        test_set = Selection_Dataset(self.hyper, self.hyper.test)#dataset
-        loader = Selection_loader(test_set, batch_size=self.hyper.test_batch, pin_memory=True)#dataloader
+        test_set = Selection_Dataset_for_test(self.hyper, self.hyper.test)#dataset
+        loader = Selection_loader_for_test(test_set, batch_size=self.hyper.test_batch, pin_memory=True)#dataloader
 
         self.triplet_metrics.reset()
         self.model.eval()
@@ -186,6 +188,7 @@ class Runner(object):
                 loss.backward()
                 self.optimizer.step()
 
+                #此处开始训练
                 pbar.set_description(output['description'](
                     epoch, self.hyper.epoch_num))
 

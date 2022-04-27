@@ -47,6 +47,7 @@ class Selection_Dataset(Dataset):
             self.bio_list.append(instance['bio'])
             self.spo_list.append(instance['spo_list'])
 
+
     def __getitem__(self, index):
         #获取index位置的selection、text、bio、spo_list局部变量list的单个对应数据
         selection = self.selection_list[index]

@@ -35,12 +35,12 @@ class Chinese_selection_preprocessing(object):
     def gen_bio_vocab(self):
         result = {'<pad>': 3, 'B': 0, 'I': 1, 'O': 2}
         json.dump(result,
-                  open(os.path.join(self.data_root, 'bio_vocab.json'), 'w',encoding='utf-8'))
+                  open(os.path.join(self.data_root, 'bio_vocab.json'), 'w', encoding='utf-8'))
 
     def gen_relation_vocab(self):
         relation_vocab = {}
         i = 0
-        for line in open(self.schema_path, 'r',encoding='utf-8'):
+        for line in open(self.schema_path, 'r', encoding='utf-8'):
             relation = json.loads(line)['predicate']
             if relation not in relation_vocab:
                 relation_vocab[relation] = i

@@ -8,8 +8,8 @@
     "test":"test_data.json",
     "relation_vocab": "relation_vocab.json",
     "print_epoch": 3,
-    "evaluation_epoch":14,
-    "test_epoch":14,
+    "evaluation_epoch":149,
+    "test_epoch":149,
     "max_text_len": 300,
     "cell_name": "lstm",
     "emb_size": 300,
@@ -19,9 +19,9 @@
     "threshold": 0.3,
     "activation": "tanh",
     "optimizer": "adam",
-    "epoch_num": 15,
-    "train_batch": 4,
+    "epoch_num": 150,
+    "train_batch": 30,
     "eval_batch": 40,
-    "test_batch": 4,
+    "test_batch": 40,
     "gpu":1
 }
